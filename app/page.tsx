@@ -2,7 +2,6 @@ import { SiteNav } from "@/components/site-nav"
 import { HeroSection } from "@/components/hero-section"
 import { AboutSection } from "@/components/about-section"
 import { ProjectsSection } from "@/components/projects-section"
-import { VideoShowcase } from "@/components/video-showcase"
 import { TechStackSection } from "@/components/tech-stack-section"
 import { ContactSection } from "@/components/contact-section"
 import { SiteFooter } from "@/components/site-footer"
@@ -14,7 +13,6 @@ export default function Page() {
       <HeroSection />
       <AboutSection />
       <ProjectsSection />
-      <VideoShowcase />
       <TechStackSection />
       <ContactSection />
       <SiteFooter />

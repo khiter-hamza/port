@@ -7,13 +7,13 @@ import * as THREE from "three"
 
 /* ------------------------------ Ambient stars ------------------------------ */
 
-function ParticleField({ count = 1200 }: { count?: number }) {
+function ParticleField({ count = 900 }: { count?: number }) {
   const ref = useRef<THREE.Points>(null)
 
   const positions = useMemo(() => {
     const arr = new Float32Array(count * 3)
     for (let i = 0; i < count; i++) {
-      const r = 5 + Math.random() * 7
+      const r = 6 + Math.random() * 8
       const theta = Math.random() * Math.PI * 2
       const phi = Math.acos(2 * Math.random() - 1)
       arr[i * 3 + 0] = r * Math.sin(phi) * Math.cos(theta)
@@ -25,8 +25,8 @@ function ParticleField({ count = 1200 }: { count?: number }) {
 
   useFrame((_state: RootState, delta: number) => {
     if (!ref.current) return
-    ref.current.rotation.y += delta * 0.03
-    ref.current.rotation.x += delta * 0.008
+    ref.current.rotation.y += delta * 0.02
+    ref.current.rotation.x += delta * 0.005
   })
 
   return (
@@ -34,10 +34,10 @@ function ParticleField({ count = 1200 }: { count?: number }) {
       <PointMaterial
         transparent
         color={"#dcff50"}
-        size={0.018}
+        size={0.014}
         sizeAttenuation
         depthWrite={false}
-        opacity={0.55}
+        opacity={0.35}
       />
     </Points>
   )
@@ -45,28 +45,28 @@ function ParticleField({ count = 1200 }: { count?: number }) {
 
 /* ------------------------------ Neural Network ------------------------------ */
 
-// Architecture: input -> hidden -> hidden -> output (mimics real NN diagrams)
-const LAYERS = [4, 6, 6, 3]
-const LAYER_SPACING = 1.6
+// Symmetric architecture for a clean, professional silhouette
+const LAYERS = [5, 8, 8, 5]
+const LAYER_SPACING = 1.85
 const NODE_RADIUS = 0.085
+const HALO_RADIUS = 0.26
 
-type Node = { pos: THREE.Vector3; layer: number; index: number }
-type Edge = { a: Node; b: Node; speed: number; phase: number }
+type NodeT = { pos: THREE.Vector3; layer: number; index: number }
+type Edge = { a: NodeT; b: NodeT; speed: number; phase: number }
 
-function buildGraph(): { nodes: Node[]; edges: Edge[] } {
-  const nodes: Node[] = []
+function buildGraph(): { nodes: NodeT[]; edges: Edge[] } {
+  const nodes: NodeT[] = []
   const totalLayers = LAYERS.length
   const totalWidth = (totalLayers - 1) * LAYER_SPACING
 
   LAYERS.forEach((count, layerIdx) => {
     const x = layerIdx * LAYER_SPACING - totalWidth / 2
-    // Vertical spacing inside the layer
-    const vSpacing = 0.55
+    const vSpacing = 0.5
     const totalHeight = (count - 1) * vSpacing
     for (let i = 0; i < count; i++) {
       const y = i * vSpacing - totalHeight / 2
-      // Slight z jitter so the graph feels 3D when rotated
-      const z = (Math.random() - 0.5) * 0.4
+      // small deterministic z offset gives subtle depth without chaos
+      const z = Math.sin(layerIdx * 1.3 + i * 0.7) * 0.15
       nodes.push({
         pos: new THREE.Vector3(x, y, z),
         layer: layerIdx,
@@ -85,7 +85,7 @@ function buildGraph(): { nodes: Node[]; edges: Edge[] } {
         edges.push({
           a,
           b,
-          speed: 0.35 + Math.random() * 0.5,
+          speed: 0.3 + Math.random() * 0.4,
           phase: Math.random(),
         })
       }
@@ -96,9 +96,13 @@ function buildGraph(): { nodes: Node[]; edges: Edge[] } {
 }
 
 function Edges({ edges }: { edges: Edge[] }) {
-  // Static line geometry for all edges
-  const geometry = useMemo(() => {
+  // Per-vertex colors: brighter near connection ends, dimmer toward middle gives depth
+  const { geometry } = useMemo(() => {
     const positions = new Float32Array(edges.length * 2 * 3)
+    const colors = new Float32Array(edges.length * 2 * 3)
+    const accent = new THREE.Color("#dcff50")
+    const cool = new THREE.Color("#7ee0ff")
+
     edges.forEach((e, i) => {
       const off = i * 6
       positions[off + 0] = e.a.pos.x
@@ -107,26 +111,38 @@ function Edges({ edges }: { edges: Edge[] }) {
       positions[off + 3] = e.b.pos.x
       positions[off + 4] = e.b.pos.y
       positions[off + 5] = e.b.pos.z
+
+      // Mix colors slightly per edge based on layer index for visual variety
+      const t = e.a.layer / Math.max(1, LAYERS.length - 2)
+      const col = new THREE.Color().lerpColors(accent, cool, t * 0.45)
+      colors[off + 0] = col.r
+      colors[off + 1] = col.g
+      colors[off + 2] = col.b
+      colors[off + 3] = col.r
+      colors[off + 4] = col.g
+      colors[off + 5] = col.b
     })
     const geo = new THREE.BufferGeometry()
     geo.setAttribute("position", new THREE.BufferAttribute(positions, 3))
-    return geo
+    geo.setAttribute("color", new THREE.BufferAttribute(colors, 3))
+    return { geometry: geo }
   }, [edges])
 
   return (
     <lineSegments geometry={geometry}>
       <lineBasicMaterial
-        color={"#dcff50"}
+        vertexColors
         transparent
-        opacity={0.18}
+        opacity={0.22}
         depthWrite={false}
+        blending={THREE.AdditiveBlending}
       />
     </lineSegments>
   )
 }
 
 function Pulses({ edges }: { edges: Edge[] }) {
-  // One traveling "data packet" per edge, rendered as a Points cloud for cheapness
+  // Travelling "data packet" per edge with additive blend for a real glow feel
   const ref = useRef<THREE.Points>(null)
   const positions = useMemo(
     () => new Float32Array(edges.length * 3),
@@ -142,7 +158,6 @@ function Pulses({ edges }: { edges: Edge[] }) {
   useFrame((state: RootState) => {
     const t = state.clock.elapsedTime
     edges.forEach((e, i) => {
-      // Loop 0..1 over time, offset per edge
       let p = (e.phase + t * e.speed) % 1
       if (p < 0) p += 1
       const x = e.a.pos.x + (e.b.pos.x - e.a.pos.x) * p
@@ -154,58 +169,75 @@ function Pulses({ edges }: { edges: Edge[] }) {
     })
     const attr = geometry.attributes.position as THREE.BufferAttribute
     attr.needsUpdate = true
-    if (ref.current) ref.current.rotation.set(0, 0, 0)
   })
 
   return (
     <points ref={ref} geometry={geometry}>
       <pointsMaterial
         color={"#ffffff"}
-        size={0.07}
+        size={0.085}
         transparent
         opacity={0.95}
         sizeAttenuation
         depthWrite={false}
+        blending={THREE.AdditiveBlending}
       />
     </points>
   )
 }
 
-function Nodes({ nodes }: { nodes: Node[] }) {
-  const groupRef = useRef<THREE.Group>(null)
-  const meshes = useRef<THREE.Mesh[]>([])
+function NodeMesh({ node, i }: { node: NodeT; i: number }) {
+  const coreRef = useRef<THREE.Mesh>(null)
+  const haloRef = useRef<THREE.Mesh>(null)
 
   useFrame((state: RootState) => {
     const t = state.clock.elapsedTime
-    meshes.current.forEach((m, i) => {
-      if (!m) return
-      // Each node breathes at its own frequency
-      const s = 1 + Math.sin(t * 1.2 + i * 0.6) * 0.15
-      m.scale.setScalar(s)
-      const mat = m.material as THREE.MeshStandardMaterial
-      mat.emissiveIntensity = 0.7 + (Math.sin(t * 1.6 + i * 0.4) * 0.5 + 0.5) * 1.2
-    })
+    const breathe = 0.5 + (Math.sin(t * 1.4 + i * 0.55) * 0.5 + 0.5) * 0.5
+    if (coreRef.current) {
+      const mat = coreRef.current.material as THREE.MeshStandardMaterial
+      mat.emissiveIntensity = 1.2 + breathe * 1.2
+    }
+    if (haloRef.current) {
+      const mat = haloRef.current.material as THREE.MeshBasicMaterial
+      mat.opacity = 0.12 + breathe * 0.18
+      const s = 0.95 + breathe * 0.15
+      haloRef.current.scale.setScalar(s)
+    }
   })
 
   return (
-    <group ref={groupRef}>
+    <group position={node.pos}>
+      {/* Soft outer halo for the bloom feel */}
+      <mesh ref={haloRef}>
+        <sphereGeometry args={[HALO_RADIUS, 18, 18]} />
+        <meshBasicMaterial
+          color={"#dcff50"}
+          transparent
+          opacity={0.18}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+      {/* Solid glowing core */}
+      <mesh ref={coreRef}>
+        <sphereGeometry args={[NODE_RADIUS, 24, 24]} />
+        <meshStandardMaterial
+          color={"#0a0a0a"}
+          emissive={"#dcff50"}
+          emissiveIntensity={1.6}
+          metalness={0.5}
+          roughness={0.25}
+        />
+      </mesh>
+    </group>
+  )
+}
+
+function Nodes({ nodes }: { nodes: NodeT[] }) {
+  return (
+    <group>
       {nodes.map((n, i) => (
-        <mesh
-          key={i}
-          ref={(m) => {
-            if (m) meshes.current[i] = m
-          }}
-          position={n.pos}
-        >
-          <sphereGeometry args={[NODE_RADIUS, 20, 20]} />
-          <meshStandardMaterial
-            color={"#0a0a0a"}
-            emissive={"#dcff50"}
-            emissiveIntensity={1.0}
-            metalness={0.4}
-            roughness={0.3}
-          />
-        </mesh>
+        <NodeMesh key={i} node={n} i={i} />
       ))}
     </group>
   )
@@ -219,15 +251,15 @@ function NeuralGraph() {
     const g = groupRef.current
     if (!g) return
     const t = state.clock.elapsedTime
-    // Slow autonomous rotation
-    g.rotation.y = Math.sin(t * 0.18) * 0.55 + t * 0.04
-    g.rotation.x = Math.sin(t * 0.22) * 0.18
+    // Slow, controlled rotation — feels deliberate, not chaotic
+    g.rotation.y = Math.sin(t * 0.12) * 0.35
+    g.rotation.x = Math.sin(t * 0.16) * 0.08
 
-    // Mouse parallax
+    // Soft mouse parallax
     const px = state.pointer.x
     const py = state.pointer.y
-    g.position.x = THREE.MathUtils.lerp(g.position.x, px * 0.35, 0.05)
-    g.position.y = THREE.MathUtils.lerp(g.position.y, py * 0.25, 0.05)
+    g.position.x = THREE.MathUtils.lerp(g.position.x, px * 0.25, 0.04)
+    g.position.y = THREE.MathUtils.lerp(g.position.y, py * 0.18, 0.04)
   })
 
   return (
@@ -244,15 +276,14 @@ function NeuralGraph() {
 function Scene() {
   return (
     <>
-      <color attach="background" args={["#0a0a0a"]} />
-      <fog attach="fog" args={["#0a0a0a", 7, 20]} />
+      <fog attach="fog" args={["#0a0a0a", 9, 22]} />
 
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[3, 4, 5]} intensity={1.0} color={"#dcff50"} />
-      <pointLight position={[-4, -2, -3]} intensity={0.6} color={"#ffffff"} />
+      <ambientLight intensity={0.4} />
+      <directionalLight position={[3, 4, 5]} intensity={0.8} color={"#dcff50"} />
+      <pointLight position={[-4, -2, -3]} intensity={0.5} color={"#7ee0ff"} />
 
       <NeuralGraph />
-      <ParticleField count={1100} />
+      <ParticleField count={900} />
     </>
   )
 }
@@ -268,7 +299,7 @@ export function HeroCanvas() {
         alpha: true,
       }}
       dpr={[1, 1.75]}
-      camera={{ position: [0, 0, 5.5], fov: 45 }}
+      camera={{ position: [0, 0, 6], fov: 42 }}
     >
       <Suspense fallback={null}>
         <Scene />

@@ -290,77 +290,40 @@ html.lenis body {
   );
 }
 
-/* Reveal on scroll — cinematic zoom from depth */
-.reveal {
-  opacity: 0;
-  transform: translate3d(0, 70px, 0) scale(0.82);
-  filter: blur(14px);
-  transition:
-    opacity 1.15s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 1.15s cubic-bezier(0.16, 1, 0.3, 1),
-    filter 1.15s cubic-bezier(0.16, 1, 0.3, 1);
-  will-change: opacity, transform, filter;
-}
-.reveal.is-visible {
-  opacity: 1;
-  transform: translate3d(0, 0, 0) scale(1);
-  filter: blur(0);
-}
-
-/* Reveal variants */
-.reveal-left {
-  transform: translate3d(-80px, 0, 0) scale(0.9);
-}
-.reveal-left.is-visible {
-  transform: translate3d(0, 0, 0) scale(1);
-}
-.reveal-right {
-  transform: translate3d(80px, 0, 0) scale(0.9);
-}
-.reveal-right.is-visible {
-  transform: translate3d(0, 0, 0) scale(1);
-}
-.reveal-scale {
-  transform: scale(0.85);
-  filter: blur(10px);
-}
-.reveal-scale.is-visible {
-  transform: scale(1);
-  filter: blur(0);
-}
-
-/* Strong zoom-in for cards/images — a deeper "drift in from depth" */
+/* Reveal on scroll — basic, subtle fade-up */
+.reveal,
+.reveal-left,
+.reveal-right,
+.reveal-scale,
 .reveal-zoom {
   opacity: 0;
-  transform: translate3d(0, 60px, 0) scale(0.7);
-  filter: blur(18px) brightness(0.85);
+  transform: translate3d(0, 16px, 0);
   transition:
-    opacity 1.3s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 1.3s cubic-bezier(0.16, 1, 0.3, 1),
-    filter 1.3s cubic-bezier(0.16, 1, 0.3, 1);
-  will-change: opacity, transform, filter;
+    opacity 0.55s ease-out,
+    transform 0.55s ease-out;
+  will-change: opacity, transform;
 }
+.reveal.is-visible,
+.reveal-left.is-visible,
+.reveal-right.is-visible,
+.reveal-scale.is-visible,
 .reveal-zoom.is-visible {
   opacity: 1;
-  transform: translate3d(0, 0, 0) scale(1);
-  filter: blur(0) brightness(1);
+  transform: translate3d(0, 0, 0);
 }
 
-/* Curtain mask for headings — line slides up from below a hidden mask */
+/* Curtain mask kept minimal — just a quick fade */
 .reveal-curtain {
   display: inline-block;
-  overflow: hidden;
-  vertical-align: bottom;
 }
 .reveal-curtain > .curtain-inner {
   display: inline-block;
-  transform: translateY(110%);
-  transition: transform 1.05s cubic-bezier(0.16, 1, 0.3, 1);
-  will-change: transform;
+  opacity: 0;
+  transition: opacity 0.5s ease-out;
 }
 .reveal-curtain.is-visible > .curtain-inner,
 .is-visible > .reveal-curtain > .curtain-inner {
-  transform: translateY(0%);
+  opacity: 1;
 }
 
 /* Respect reduced motion preferences */
