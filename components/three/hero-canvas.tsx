@@ -559,7 +559,7 @@ function SceneContent({ scrollY }: { scrollY: { current: number } }) {
   )
 }
 
-export default function HeroCanvas() {
+export function HeroCanvas() {
   const [ready, setReady] = useState(false)
   const scrollY = useRef(0)
 
