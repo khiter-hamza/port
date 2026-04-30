@@ -1,10 +1,12 @@
 "use client"
 
 import Image from "next/image"
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { ArrowUpRight } from "lucide-react"
+import { motion, useScroll, useTransform, useSpring } from "motion/react"
 import { cn } from "@/lib/utils"
 import { useReveal } from "@/hooks/use-reveal"
+import { useTilt } from "@/hooks/use-tilt"
 
 type Category = "All" | "Web" | "AI/ML" | "Data" | "Automation"
 
@@ -23,8 +25,7 @@ const projects: Project[] = [
     description:
       "Advanced intelligence engine designed for strategic surveillance, real-time data harvesting, and multi-layered threat analysis.",
     tags: ["Python", "AI Agents", "Strategic Analytics", "Surveillance Systems"],
-    image:
-      "/dark-cybersecurity-dashboard-with-real-time-data-v.jpg",
+    image: "/dark-cybersecurity-dashboard-with-real-time-data-v.jpg",
   },
   {
     title: "Medical Question Answering with GPT-2 (Fine-Tuning)",
@@ -70,120 +71,225 @@ const projects: Project[] = [
 
 const categories: Category[] = ["All", "Web", "AI/ML", "Data", "Automation"]
 
+/* ------------------------------ Tilt Card ------------------------------ */
+
+function ProjectCard({ p, index }: { p: Project; index: number }) {
+  const tiltRef = useTilt<HTMLElement>({
+    max: 10,
+    depth: 22,
+    glare: 0.35,
+    scale: 1.02,
+  })
+
+  return (
+    <article
+      ref={tiltRef}
+      className={cn(
+        "relative shrink-0 w-[78vw] md:w-[60vw] lg:w-[44vw] xl:w-[40vw]",
+        "h-[68vh] md:h-[72vh] rounded-2xl border border-border bg-card overflow-hidden",
+        "[transform-style:preserve-3d] will-change-transform",
+        "hover:border-primary/40 transition-[border-color] duration-500",
+        "shadow-[0_30px_80px_-30px_hsl(0_0%_0%/0.7)]",
+      )}
+    >
+      {/* Image layer (deepest) */}
+      <div className="relative h-[58%] overflow-hidden bg-secondary">
+        <div data-tilt-layer="0.5" className="absolute inset-0">
+          <Image
+            src={p.image || "/placeholder.svg"}
+            alt={p.title}
+            fill
+            className="object-cover transition-[transform,filter] duration-700 hover:scale-105"
+            sizes="(max-width: 768px) 80vw, 50vw"
+          />
+        </div>
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-t from-card via-card/30 to-transparent"
+        />
+        <div data-tilt-layer="3" className="absolute top-4 left-4">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-background/80 backdrop-blur px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider text-primary">
+            <span className="h-1 w-1 rounded-full bg-primary animate-pulse" />
+            {p.category}
+          </span>
+        </div>
+        <div data-tilt-layer="3" className="absolute top-4 right-4">
+          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground bg-background/70 backdrop-blur rounded-full px-2.5 py-1 border border-border/60">
+            {String(index + 1).padStart(2, "0")} / {String(projects.length).padStart(2, "0")}
+          </span>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="p-6 md:p-7 h-[42%] flex flex-col">
+        <div data-tilt-layer="2" className="flex items-start justify-between gap-4">
+          <h3 className="font-sans text-lg md:text-xl font-medium tracking-[-0.01em] text-pretty">
+            {p.title}
+          </h3>
+          <span className="mt-1 inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-secondary/60 text-muted-foreground hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all duration-300">
+            <ArrowUpRight className="h-4 w-4" />
+          </span>
+        </div>
+        <p
+          data-tilt-layer="1.5"
+          className="mt-3 text-sm leading-relaxed text-muted-foreground line-clamp-3"
+        >
+          {p.description}
+        </p>
+        <div data-tilt-layer="2.5" className="mt-auto pt-4 flex flex-wrap gap-1.5">
+          {p.tags.slice(0, 4).map((t) => (
+            <span
+              key={t}
+              className="rounded-full border border-border bg-secondary/40 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground"
+            >
+              {t}
+            </span>
+          ))}
+        </div>
+      </div>
+    </article>
+  )
+}
+
+/* ------------------------------ Section ------------------------------ */
+
 export function ProjectsSection() {
-  const ref = useReveal<HTMLElement>()
+  const reveal = useReveal<HTMLDivElement>()
   const [active, setActive] = useState<Category>("All")
+
+  // Pinned horizontal scroll container
+  const trackRef = useRef<HTMLDivElement>(null)
+  const { scrollYProgress } = useScroll({
+    target: trackRef,
+    offset: ["start start", "end end"],
+  })
+  const sp = useSpring(scrollYProgress, {
+    stiffness: 80,
+    damping: 22,
+    mass: 0.5,
+  })
 
   const filtered =
     active === "All" ? projects : projects.filter((p) => p.category === active)
 
+  // Translate horizontally — 100vw of header padding plus enough to scroll all cards through
+  // The total horizontal travel depends on number of cards. We tune it visually.
+  const xRange = filtered.length <= 2 ? "-30%" : filtered.length <= 4 ? "-65%" : "-78%"
+  const x = useTransform(sp, [0, 1], ["0%", xRange])
+
+  // Scroll progress bar at bottom of pinned section
+  const progressBarScale = useTransform(sp, (v) => Math.max(0.02, v))
+
+  // Number of "screens" to scroll through. Each card adds ~ half a screen.
+  const screens = Math.max(2, Math.ceil(filtered.length * 0.6) + 1)
+
   return (
     <section
       id="projects"
-      ref={ref}
-      className="relative py-32 lg:py-40 border-t border-border"
+      className="relative border-t border-border"
     >
-      <div className="mx-auto max-w-7xl px-6 lg:px-10">
-        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8">
-          <div>
-            <div className="reveal flex items-center gap-3">
-              <span className="h-px w-10 bg-primary" />
-              <span className="font-mono text-[11px] uppercase tracking-[0.25em] text-primary">
-                Selected work
-              </span>
-            </div>
-            <h2
-              className="reveal mt-6 font-sans font-medium tracking-[-0.03em] text-4xl md:text-5xl lg:text-6xl"
-              style={{ transitionDelay: "80ms" }}
-            >
-              Featured projects
-            </h2>
-          </div>
-
-          {/* Filter tabs */}
-          <div
-            className="reveal flex flex-wrap gap-1 rounded-full border border-border bg-secondary/40 p-1"
-            style={{ transitionDelay: "140ms" }}
-            role="tablist"
-          >
-            {categories.map((c) => (
-              <button
-                key={c}
-                role="tab"
-                aria-selected={active === c}
-                onClick={() => setActive(c)}
-                className={cn(
-                  "px-4 py-1.5 text-xs font-mono uppercase tracking-wider rounded-full transition-all duration-300",
-                  active === c
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Grid */}
-        <div className="mt-14 grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-          {filtered.map((p, i) => (
-            <article
-              key={p.title}
-              className="reveal-zoom group relative overflow-hidden rounded-xl border border-border bg-card hover:border-primary/40 transition-[border-color,transform,box-shadow] duration-500 hover:-translate-y-1"
-              style={{ transitionDelay: `${i * 110}ms` }}
-            >
-              {/* Image */}
-              <div className="relative aspect-[16/10] overflow-hidden bg-secondary">
-                <Image
-                  src={p.image || "/placeholder.svg"}
-                  alt={p.title}
-                  fill
-                  className="object-cover transition-all duration-700 group-hover:scale-105 group-hover:saturate-150"
-                  sizes="(max-width: 768px) 100vw, 50vw"
-                />
-                <div
-                  aria-hidden
-                  className="absolute inset-0 bg-gradient-to-t from-card via-card/40 to-transparent"
-                />
-                <span className="absolute top-4 left-4 inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-background/80 backdrop-blur px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider text-primary">
-                  {p.category}
-                </span>
-              </div>
-
-              {/* Body */}
-              <div className="p-6 md:p-7">
-                <div className="flex items-start justify-between gap-4">
-                  <h3 className="font-sans text-lg md:text-xl font-medium tracking-[-0.01em] text-pretty">
-                    {p.title}
-                  </h3>
-                  <span className="mt-1 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-secondary/60 text-muted-foreground group-hover:bg-primary group-hover:text-primary-foreground group-hover:border-primary transition-all duration-300">
-                    <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                  </span>
-                </div>
-                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                  {p.description}
-                </p>
-                <div className="mt-5 flex flex-wrap gap-1.5">
-                  {p.tags.map((t) => (
-                    <span
-                      key={t}
-                      className="rounded-full border border-border bg-secondary/40 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground"
-                    >
-                      {t}
+      {/* Tall outer track that drives the pinned timeline */}
+      <div
+        ref={trackRef}
+        style={{ height: `${screens * 100}vh` }}
+        className="relative"
+      >
+        {/* Sticky pinned viewport */}
+        <div className="sticky top-0 h-[100svh] overflow-hidden">
+          <div ref={reveal} className="absolute inset-0 flex flex-col">
+            {/* Header — sits at top of pinned viewport */}
+            <div className="mx-auto max-w-7xl w-full px-6 lg:px-10 pt-24 lg:pt-28">
+              <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8">
+                <div>
+                  <div className="reveal flex items-center gap-3">
+                    <span className="h-px w-10 bg-primary" />
+                    <span className="font-mono text-[11px] uppercase tracking-[0.25em] text-primary">
+                      Selected work
                     </span>
+                  </div>
+                  <h2
+                    className="reveal mt-4 font-sans font-medium tracking-[-0.03em] text-4xl md:text-5xl lg:text-6xl"
+                    style={{ transitionDelay: "80ms" }}
+                  >
+                    Featured projects
+                  </h2>
+                  <p
+                    className="reveal mt-3 text-sm text-muted-foreground font-mono uppercase tracking-[0.2em]"
+                    style={{ transitionDelay: "140ms" }}
+                  >
+                    Scroll to navigate the gallery
+                  </p>
+                </div>
+
+                <div
+                  className="reveal flex flex-wrap gap-1 rounded-full border border-border bg-secondary/40 p-1"
+                  style={{ transitionDelay: "200ms" }}
+                  role="tablist"
+                >
+                  {categories.map((c) => (
+                    <button
+                      key={c}
+                      role="tab"
+                      aria-selected={active === c}
+                      onClick={() => {
+                        setActive(c)
+                        // Reset scroll position so user starts from the first card
+                        const el = trackRef.current
+                        if (el) {
+                          const top = el.getBoundingClientRect().top + window.scrollY
+                          window.scrollTo({ top, behavior: "smooth" })
+                        }
+                      }}
+                      className={cn(
+                        "px-4 py-1.5 text-xs font-mono uppercase tracking-wider rounded-full transition-all duration-300",
+                        active === c
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {c}
+                    </button>
                   ))}
                 </div>
               </div>
-            </article>
-          ))}
-        </div>
+            </div>
 
-        {filtered.length === 0 && (
-          <p className="mt-14 text-center font-mono text-sm text-muted-foreground">
-            No projects in this category yet.
-          </p>
-        )}
+            {/* Horizontal track */}
+            <div className="relative flex-1 mt-8 lg:mt-12 [perspective:1400px]">
+              <motion.div
+                style={{ x }}
+                className="absolute top-0 left-0 h-full flex items-center gap-6 md:gap-10 pl-6 md:pl-12 lg:pl-16 pr-[40vw] will-change-transform"
+              >
+                {filtered.map((p, i) => (
+                  <ProjectCard key={`${p.title}-${active}`} p={p} index={i} />
+                ))}
+                {filtered.length === 0 && (
+                  <p className="ml-10 text-center font-mono text-sm text-muted-foreground">
+                    No projects in this category yet.
+                  </p>
+                )}
+              </motion.div>
+            </div>
+
+            {/* Scroll progress bar */}
+            <div className="mx-auto max-w-7xl w-full px-6 lg:px-10 pb-8">
+              <div className="flex items-center gap-4">
+                <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
+                  Gallery
+                </span>
+                <div className="relative flex-1 h-px bg-border overflow-hidden">
+                  <motion.div
+                    className="absolute left-0 top-0 h-full w-full bg-primary origin-left"
+                    style={{ scaleX: progressBarScale }}
+                  />
+                </div>
+                <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
+                  {String(filtered.length).padStart(2, "0")} works
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   )

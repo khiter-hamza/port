@@ -2,7 +2,9 @@
 
 import dynamic from "next/dynamic"
 import Link from "next/link"
+import { useRef } from "react"
 import { ArrowDown, Download, ArrowUpRight } from "lucide-react"
+import { motion, useScroll, useTransform, useSpring } from "motion/react"
 
 const HeroCanvas = dynamic(
   () => import("@/components/three/hero-canvas").then((m) => m.HeroCanvas),
@@ -10,15 +12,41 @@ const HeroCanvas = dynamic(
 )
 
 export function HeroSection() {
+  const ref = useRef<HTMLElement>(null)
+
+  // Scroll-linked parallax — animates as the hero leaves the viewport.
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start start", "end start"],
+  })
+
+  // Spring-smoothed progress so transforms feel fluid, not stuck to wheel ticks.
+  const sp = useSpring(scrollYProgress, { stiffness: 90, damping: 22, mass: 0.5 })
+
+  const headlineY = useTransform(sp, [0, 1], ["0%", "-30%"])
+  const headlineScale = useTransform(sp, [0, 1], [1, 1.18])
+  const headlineBlur = useTransform(sp, [0, 1], ["0px", "8px"])
+  const headlineFilter = useTransform(headlineBlur, (v) => `blur(${v})`)
+  const subY = useTransform(sp, [0, 1], ["0%", "-60%"])
+  const subOpacity = useTransform(sp, [0, 0.5, 1], [1, 0.6, 0])
+  const canvasY = useTransform(sp, [0, 1], ["0%", "20%"])
+  const canvasScale = useTransform(sp, [0, 1], [1, 1.08])
+  const overlayOpacity = useTransform(sp, [0, 1], [0.7, 1])
+
   return (
     <section
       id="top"
+      ref={ref}
       className="relative min-h-[100svh] w-full overflow-hidden flex items-center pt-20"
     >
-      {/* 3D scene fills the hero */}
-      <div aria-hidden className="absolute inset-0 z-0">
+      {/* 3D scene fills the hero — scroll parallax */}
+      <motion.div
+        aria-hidden
+        className="absolute inset-0 z-0"
+        style={{ y: canvasY, scale: canvasScale }}
+      >
         <HeroCanvas />
-      </div>
+      </motion.div>
 
       {/* Background grid + radial glow */}
       <div aria-hidden className="absolute inset-0 z-[1] bg-grid opacity-25 mix-blend-overlay" />
@@ -31,14 +59,16 @@ export function HeroSection() {
         }}
       />
       {/* Subtle vignette so text reads against the 3D scene */}
-      <div
+      <motion.div
         aria-hidden
         className="absolute inset-0 z-[1] pointer-events-none"
         style={{
+          opacity: overlayOpacity,
           background:
             "radial-gradient(120% 80% at 50% 50%, transparent 40%, hsl(0 0% 4% / 0.7) 100%)",
         }}
       />
+
       {/* Floating accent dots */}
       <span
         aria-hidden
@@ -82,32 +112,37 @@ export function HeroSection() {
           </span>
         </div>
 
-        {/* Headline */}
-        <h1
-          className="mt-4 font-sans font-medium tracking-[-0.04em] text-balance text-foreground text-[16vw] sm:text-[14vw] md:text-[11vw] lg:text-[10vw] leading-[0.92] animate-fade-in-up"
-          style={{ animationDelay: "200ms" }}
+        {/* Headline — scroll-linked parallax */}
+        <motion.h1
+          className="mt-4 font-sans font-medium tracking-[-0.04em] text-balance text-foreground text-[16vw] sm:text-[14vw] md:text-[11vw] lg:text-[10vw] leading-[0.92] animate-fade-in-up will-change-transform"
+          style={{
+            animationDelay: "200ms",
+            y: headlineY,
+            scale: headlineScale,
+            filter: headlineFilter,
+          }}
         >
           <span className="block">Khiter</span>
           <span className="block">
             <span className="text-shimmer">Hamza</span>
           </span>
-        </h1>
+        </motion.h1>
 
         {/* Tagline */}
-        <div
+        <motion.div
           className="mt-8 flex items-start gap-4 max-w-2xl animate-fade-in-up"
-          style={{ animationDelay: "320ms" }}
+          style={{ animationDelay: "320ms", y: subY, opacity: subOpacity }}
         >
           <span aria-hidden className="mt-1 inline-block h-7 w-px bg-primary animate-blink" />
           <p className="text-base md:text-lg text-muted-foreground text-pretty leading-relaxed">
             I build systems that work, scale, and think.
           </p>
-        </div>
+        </motion.div>
 
         {/* CTAs */}
-        <div
+        <motion.div
           className="mt-10 flex flex-wrap items-center gap-4 animate-fade-in-up"
-          style={{ animationDelay: "440ms" }}
+          style={{ animationDelay: "440ms", y: subY, opacity: subOpacity }}
         >
           <a
             href="/khiter-hamza-cv.pdf"
@@ -124,7 +159,7 @@ export function HeroSection() {
             See projects
             <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
           </Link>
-        </div>
+        </motion.div>
 
         {/* Scroll indicator */}
         <Link

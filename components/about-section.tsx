@@ -1,12 +1,36 @@
 "use client"
 
 import Image from "next/image"
+import { useRef } from "react"
 import { ArrowRight } from "lucide-react"
+import { motion, useScroll, useTransform, useSpring } from "motion/react"
 import { AnimatedCounter } from "./animated-counter"
 import { useReveal } from "@/hooks/use-reveal"
+import { useTilt } from "@/hooks/use-tilt"
 
 export function AboutSection() {
   const ref = useReveal<HTMLElement>()
+  const portraitRef = useTilt<HTMLDivElement>({
+    max: 14,
+    depth: 28,
+    glare: 0.4,
+    scale: 1.03,
+  })
+
+  // Scroll-driven parallax for the portrait + headline
+  const sectionRef = useRef<HTMLDivElement>(null)
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start end", "end start"],
+  })
+  const sp = useSpring(scrollYProgress, {
+    stiffness: 80,
+    damping: 22,
+    mass: 0.5,
+  })
+  const portraitY = useTransform(sp, [0, 1], ["10%", "-10%"])
+  const portraitRotate = useTransform(sp, [0, 1], [-2, 2])
+  const textY = useTransform(sp, [0, 1], ["6%", "-6%"])
 
   return (
     <section
@@ -14,7 +38,7 @@ export function AboutSection() {
       ref={ref}
       className="relative py-32 lg:py-40 border-t border-border"
     >
-      <div className="mx-auto max-w-7xl px-6 lg:px-10">
+      <div ref={sectionRef} className="mx-auto max-w-7xl px-6 lg:px-10">
         {/* Section label */}
         <div className="reveal flex items-center gap-3">
           <span className="h-px w-10 bg-primary" />
@@ -25,7 +49,7 @@ export function AboutSection() {
 
         <div className="mt-10 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16">
           {/* Left: text */}
-          <div className="lg:col-span-7">
+          <motion.div className="lg:col-span-7" style={{ y: textY }}>
             <h2
               className="reveal font-sans font-medium tracking-[-0.03em] text-pretty text-4xl md:text-5xl lg:text-6xl leading-[1.05]"
               style={{ transitionDelay: "60ms" }}
@@ -54,16 +78,26 @@ export function AboutSection() {
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               Speak to Khiter &amp; collaborate
             </a>
-          </div>
+          </motion.div>
 
-          {/* Right: profile photo */}
-          <div className="lg:col-span-5">
+          {/* Right: profile photo with 3D tilt + parallax */}
+          <motion.div
+            className="lg:col-span-5 [perspective:1200px]"
+            style={{ y: portraitY, rotate: portraitRotate }}
+          >
             <div
-              className="reveal-zoom relative aspect-[4/5] w-full max-w-sm mx-auto lg:ml-auto"
+              ref={portraitRef}
+              className="reveal-zoom relative aspect-[4/5] w-full max-w-sm mx-auto lg:ml-auto [transform-style:preserve-3d]"
               style={{ transitionDelay: "180ms" }}
             >
-              <div className="absolute -inset-3 rounded-md border border-primary/20 animate-float-slow" />
-              <div className="absolute inset-0 rounded-md overflow-hidden bg-secondary border border-border">
+              <div
+                data-tilt-layer="0.5"
+                className="absolute -inset-3 rounded-md border border-primary/20 animate-float-slow"
+              />
+              <div
+                data-tilt-layer="1"
+                className="absolute inset-0 rounded-md overflow-hidden bg-secondary border border-border"
+              >
                 <Image
                   src="/portrait-of-a-young-male-full-stack-developer--mode.jpg"
                   alt="Portrait of Khiter Hamza"
@@ -80,11 +114,21 @@ export function AboutSection() {
                   }}
                 />
               </div>
-              <div className="absolute -bottom-3 -left-3 rounded-full bg-background border border-border px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+              <div
+                data-tilt-layer="3"
+                className="absolute -bottom-3 -left-3 rounded-full bg-background border border-border px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground"
+              >
                 <span className="text-primary">●</span> Online
               </div>
+              {/* Floating accent on top corner */}
+              <div
+                data-tilt-layer="4"
+                className="absolute -top-3 -right-3 inline-flex items-center gap-1.5 rounded-full bg-primary text-primary-foreground px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.2em]"
+              >
+                ✦ AI · Engineer
+              </div>
             </div>
-          </div>
+          </motion.div>
         </div>
 
         {/* Stats */}
